@@ -1,0 +1,114 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model PlayerProfile {
+  id             String           @id @default(cuid())
+  username       String           @unique
+  source         String           @default("chess_com")
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  games          Game[]
+  patternSummary PatternSummary[]
+
+  @@index([username])
+}
+
+model Game {
+  id              String               @id @default(cuid())
+  externalGameId  String               @unique
+  playerProfileId String
+  url             String
+  pgn             String
+  timeControl     String?
+  endTime         DateTime?
+  rated           Boolean              @default(false)
+  rules           String               @default("chess")
+  whiteUsername   String
+  blackUsername   String
+  whiteRating     Int?
+  blackRating     Int?
+  result          String
+  eco             String?
+  opening         String?
+  initialFen      String?
+  importedAt      DateTime             @default(now())
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  playerProfile   PlayerProfile        @relation(fields: [playerProfileId], references: [id])
+  analysisSummary GameAnalysisSummary?
+  moveAnalyses    MoveAnalysis[]
+
+  @@index([playerProfileId])
+  @@index([externalGameId])
+  @@index([endTime])
+}
+
+model MoveAnalysis {
+  id                 String   @id @default(cuid())
+  gameId             String
+  plyIndex           Int
+  moveNumber         Int      @default(0)
+  side               String   @default("w")
+  san                String
+  uci                String?
+  fenBefore          String
+  fenAfter           String
+  bestMove           String?
+  bestMoveSan        String?
+  bestLine           String?
+  principalVariation String   @default("[]")
+  evalBefore         Float?
+  evalAfter          Float?
+  evalLoss           Float?
+  classification     String?
+  detectedTags       String   @default("[]")
+  explanationShort   String?
+  isKeyMove          Boolean  @default(false)
+  keyMoveScore       Float    @default(0)
+  keyReason          String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  game               Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, plyIndex])
+  @@index([gameId])
+  @@index([gameId, isKeyMove])
+}
+
+model GameAnalysisSummary {
+  id                 String   @id @default(cuid())
+  gameId             String   @unique
+  analyzedAt         DateTime @default(now())
+  resultCategory     String?
+  openingPhaseIssues String   @default("[]")
+  middlegameIssues   String   @default("[]")
+  endgameIssues      String   @default("[]")
+  majorFindings      String   @default("[]")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  game               Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@index([gameId])
+}
+
+model PatternSummary {
+  id              String        @id @default(cuid())
+  playerProfileId String
+  key             String
+  label           String
+  description     String
+  frequency       Int           @default(0)
+  sampleGameIds   String        @default("[]")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  playerProfile   PlayerProfile @relation(fields: [playerProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([playerProfileId, key])
+  @@index([playerProfileId])
+}

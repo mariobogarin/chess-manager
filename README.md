@@ -1,36 +1,160 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Chess Improvement Coach
 
-## Getting Started
+Analyze your Chess.com games with Stockfish and get human-readable feedback on recurring mistakes.
 
-First, run the development server:
+## Features
+
+- **Game import** — fetch all public games from Chess.com automatically
+- **Board review** — navigate any game move by move with highlighted squares
+- **Stockfish analysis** — per-move engine evaluation and best move suggestions
+- **Move classification** — good / inaccuracy / mistake / blunder
+- **Pattern detection** — hanging pieces, ignored threats, delayed castling, poor opening development, squandered advantages
+- **Human-readable feedback** — plain-English explanations per move
+- **Dashboard** — win/loss stats, time control breakdown, top recurring patterns
+
+## Stack
+
+- Next.js 15 (App Router)
+- TypeScript + Tailwind CSS
+- Prisma + SQLite
+- chess.js (PGN parsing, FEN generation)
+- react-chessboard (board rendering)
+- Stockfish (local engine, UCI protocol)
+
+---
+
+## Setup
+
+### 1. Install dependencies
+
+```bash
+npm install
+```
+
+### 2. Configure environment
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` if needed. The defaults work for local development.
+
+### 3. Set up the database
+
+```bash
+npx prisma migrate dev --name init
+```
+
+This creates `prisma/dev.db` (SQLite) and generates the Prisma client.
+
+### 4. Install Stockfish
+
+Stockfish must be installed locally for game analysis. Import and board navigation work without it.
+
+**macOS (Homebrew):**
+```bash
+brew install stockfish
+```
+
+**Linux (apt):**
+```bash
+sudo apt install stockfish
+```
+
+**Custom path:**
+
+Add to your `.env`:
+```
+STOCKFISH_PATH=/path/to/stockfish
+```
+
+### 5. Run the development server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Usage
 
-## Learn More
+1. Enter your Chess.com username on the home screen and click **Import games**.
+2. After import completes, you'll be redirected to your dashboard.
+3. Click any game to open the board review page.
+4. Click **Analyze game** to run Stockfish analysis (requires Stockfish installed).
+5. Navigate moves with arrow keys or the move list.
+6. After analysis, each move shows its classification, evaluation, and explanation.
+7. Your dashboard shows aggregated pattern statistics over all analyzed games.
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Project structure
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+src/
+├── app/
+│   ├── page.tsx                    # Home / import screen
+│   ├── dashboard/[username]/       # Player dashboard
+│   ├── games/                      # Games list
+│   ├── game/[id]/                  # Game review
+│   └── api/
+│       ├── import/                 # POST: import Chess.com games
+│       ├── games/[id]/             # GET: game detail + plies
+│       ├── games/[id]/analyze/     # POST: run Stockfish analysis
+│       └── dashboard/[username]/   # GET: dashboard summary
+├── components/
+│   ├── BoardView.tsx               # Chessboard + navigation controls
+│   ├── MoveList.tsx                # Move list with classification badges
+│   ├── AnalysisPanel.tsx           # Per-move analysis panel
+│   ├── GameCard.tsx                # Game summary card
+│   ├── ClassificationBadge.tsx
+│   └── PatternBadge.tsx
+└── lib/
+    ├── chesscom/importer.ts        # Chess.com API client + game import
+    ├── pgn/parser.ts               # PGN parsing, FEN generation, board utilities
+    ├── stockfish/engine.ts         # Stockfish UCI communication
+    ├── analysis/
+    │   ├── classifier.ts           # Move classification thresholds
+    │   └── analyzer.ts             # Full game analysis orchestration
+    ├── patterns/                   # Pattern detectors (one file per pattern)
+    │   ├── hangingPiece.ts
+    │   ├── ignoringThreat.ts
+    │   ├── kingSafety.ts
+    │   ├── openingDevelopment.ts
+    │   └── losingAdvantage.ts
+    └── feedback/templates.ts       # Deterministic explanation templates
+```
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Tuning
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Move classification thresholds
+
+Edit `src/lib/analysis/classifier.ts`:
+
+```ts
+export const CLASSIFICATION_THRESHOLDS = {
+  great: -50,       // eval improves by 50+ cp
+  good: 30,         // loss <= 30 cp
+  inaccuracy: 60,   // loss <= 60 cp
+  mistake: 120,     // loss <= 120 cp
+  // above = blunder
+};
+```
+
+### Stockfish depth / time
+
+Edit `src/lib/stockfish/engine.ts`:
+
+```ts
+export const DEFAULT_CONFIG: StockfishConfig = {
+  depth: 16,
+  movetime: 1000, // ms per position
+  multiPV: 1,
+};
+```
+
+Reduce `depth` and `movetime` for faster analysis on slower machines.
