@@ -1,7 +1,16 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx create-next-app@latest . --typescript --tailwind --app --src-dir --no-eslint --import-alias \"@/*\" --yes 2>&1 | tail -20)"
+      "Bash(npx create-next-app@latest . --typescript --tailwind --app --src-dir --no-eslint --import-alias \"@/*\" --yes 2>&1 | tail -20)",
+      "Bash(npm install:*)",
+      "Bash(npx prisma:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run:*)",
+      "Bash(ls /Users/mario.bogarin/source/mario/chess-manager/public/ && ls /Users/mario.bogarin/source/mario/chess-manager/src/app/manifest* 2>/dev/null || echo \"no manifest\")",
+      "Bash(node -e \"\nconst { PrismaClient } = require\\('@prisma/client'\\);\nconst p = new PrismaClient\\(\\);\np.moveAnalysis.findMany\\({\n  where: { gameId: 'cmncd7y4z0064ibvhwjacaw6j' },\n  orderBy: { plyIndex: 'asc' }\n}\\).then\\(moves => {\n  const nullEval = moves.filter\\(m => m.evalBefore === null\\).length;\n  const hasEval = moves.filter\\(m => m.evalBefore !== null\\).length;\n  const sideWrong = moves.filter\\(m => m.side === 'w'\\).length;\n  const sideRight = moves.filter\\(m => m.side === 'b'\\).length;\n  console.log\\('total moves:', moves.length\\);\n  console.log\\('null evalBefore:', nullEval, '/ has evalBefore:', hasEval\\);\n  console.log\\('side=w:', sideWrong, '/ side=b:', sideRight\\);\n  // show first move with evalBefore set if any\n  const withEval = moves.find\\(m => m.evalBefore !== null\\);\n  console.log\\('first with eval:', withEval ? JSON.stringify\\({plyIndex: withEval.plyIndex, evalBefore: withEval.evalBefore, evalLoss: withEval.evalLoss, classification: withEval.classification}\\) : 'NONE'\\);\n  // show all classifications\n  const classMap = {};\n  moves.forEach\\(m => { classMap[m.classification ?? 'null'] = \\(classMap[m.classification ?? 'null'] || 0\\) + 1; }\\);\n  console.log\\('classifications:', classMap\\);\n}\\).finally\\(\\(\\) => p.\\\\$disconnect\\(\\)\\);\n\" 2>&1)",
+      "Bash(sqlite3 /Users/mario.bogarin/source/mario/chess-manager/prisma/dev.db \"\nSELECT plyIndex, side, classification, evalBefore, evalAfter, evalLoss, isKeyMove, bestMoveSan\nFROM MoveAnalysis \nWHERE gameId = 'cmncd7y4z0064ibvhwjacaw6j'\nORDER BY plyIndex ASC\nLIMIT 15;\n\")",
+      "Bash(stockfish --version)",
+      "Bash(node -e \"\nconst fs = require\\('fs'\\);\nconst path = require\\('path'\\);\nconst candidates = [\n  '/opt/homebrew/bin/stockfish',\n  '/usr/local/bin/stockfish',\n  '/usr/bin/stockfish',\n  '/usr/games/stockfish',\n];\nconst found = candidates.find\\(c => fs.existsSync\\(c\\)\\);\nconsole.log\\('Stockfish found at:', found ?? 'NOT FOUND'\\);\n\")"
     ]
   }
 }

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import { Chess } from "chess.js";
 import type { Game, MoveAnalysis, GameAnalysisSummary } from "@prisma/client";
 import type { Ply } from "@/lib/pgn/parser";
 import { MoveList } from "@/components/MoveList";
@@ -27,6 +28,40 @@ interface GameResponse {
   plies: Ply[];
 }
 
+interface PvExplorer {
+  /** FEN at each step: fens[0] = fenBefore, fens[i] = after i-th PV move */
+  fens: string[];
+  /** Arrow for each step: arrows[i] points to where sans[i] lands; null at end */
+  arrows: ([string, string] | null)[];
+  /** SAN labels for the PV moves */
+  sans: string[];
+  /** Current step: 0 = before any PV move, sans.length = all moves played */
+  step: number;
+}
+
+function buildPvExplorer(fenBefore: string, pvSan: string[]): PvExplorer | null {
+  if (pvSan.length === 0) return null;
+  const chess = new Chess(fenBefore);
+  const fens: string[] = [fenBefore];
+  const arrows: ([string, string] | null)[] = [];
+  const sans: string[] = [];
+
+  for (const san of pvSan) {
+    try {
+      const move = chess.move(san);
+      if (!move) break;
+      arrows.push([move.from, move.to]);
+      fens.push(chess.fen());
+      sans.push(san);
+    } catch {
+      break;
+    }
+  }
+  arrows.push(null); // terminal step has no arrow
+
+  return { fens, arrows, sans, step: 0 };
+}
+
 export default function GamePage() {
   const params = useParams();
   const id = params.id as string;
@@ -38,6 +73,7 @@ export default function GamePage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
   const [analyzeStatus, setAnalyzeStatus] = useState<string | null>(null);
+  const [pvExplorer, setPvExplorer] = useState<PvExplorer | null>(null);
 
   async function fetchGame() {
     setLoading(true);
@@ -59,8 +95,24 @@ export default function GamePage() {
 
   useEffect(() => { fetchGame(); }, [id]);
 
+  // Reset PV explorer whenever the game move changes
+  useEffect(() => { setPvExplorer(null); }, [currentPlyIndex]);
+
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
+      if (pvExplorer) {
+        // Arrow keys navigate the PV when explorer is open
+        if (e.key === "ArrowLeft") {
+          e.preventDefault();
+          setPvExplorer((p) => p ? { ...p, step: Math.max(0, p.step - 1) } : null);
+        } else if (e.key === "ArrowRight") {
+          e.preventDefault();
+          setPvExplorer((p) => p ? { ...p, step: Math.min(p.sans.length, p.step + 1) } : null);
+        } else if (e.key === "Escape") {
+          setPvExplorer(null);
+        }
+        return;
+      }
       if (!data) return;
       if (e.key === "ArrowLeft") setCurrentPlyIndex((i) => Math.max(-1, i - 1));
       else if (e.key === "ArrowRight") setCurrentPlyIndex((i) => Math.min(data.plies.length - 1, i + 1));
@@ -69,7 +121,7 @@ export default function GamePage() {
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [data]);
+  }, [data, pvExplorer]);
 
   async function handleAnalyze() {
     setAnalyzing(true);
@@ -126,6 +178,23 @@ export default function GamePage() {
 
   const hasAnalysis = game.moveAnalyses.length > 0;
 
+  // When PV explorer is open, override the board position and arrow
+  const displayFen = pvExplorer ? pvExplorer.fens[pvExplorer.step] : currentFen;
+  const displayArrow = pvExplorer ? pvExplorer.arrows[pvExplorer.step] : null;
+
+  function handleTogglePv() {
+    if (pvExplorer) {
+      setPvExplorer(null);
+      return;
+    }
+    if (!currentAnalysis) return;
+    const pv: string[] = currentAnalysis.principalVariation
+      ? JSON.parse(currentAnalysis.principalVariation)
+      : [];
+    const explorer = buildPvExplorer(currentAnalysis.fenBefore, pv);
+    setPvExplorer(explorer);
+  }
+
   // Key moments: player moves flagged as key, sorted chronologically
   const keyMoves = game.moveAnalyses
     .filter((ma) => ma.isKeyMove && ma.side === playerColor)
@@ -179,6 +248,18 @@ export default function GamePage() {
               </span>
               <span className="text-gray-400 ml-1">({game.blackRating ?? "?"})</span>
             </div>
+            {game.analysisSummary?.whiteAccuracy != null && (
+              <div className="text-xs">
+                <span className="text-gray-400">Accuracy — </span>
+                <span className="font-medium text-gray-700">
+                  {game.whiteUsername}: {game.analysisSummary.whiteAccuracy.toFixed(1)}%
+                </span>
+                <span className="text-gray-300 mx-1">·</span>
+                <span className="font-medium text-gray-700">
+                  {game.blackUsername}: {(game.analysisSummary.blackAccuracy ?? 0).toFixed(1)}%
+                </span>
+              </div>
+            )}
             {game.opening && <div className="text-gray-600 italic truncate max-w-xs">{game.opening}</div>}
             {game.timeControl && <span className="text-gray-500">{game.timeControl}</span>}
             <span className={`font-semibold rounded px-2 py-0.5 text-xs border ${
@@ -201,7 +282,7 @@ export default function GamePage() {
           )}
         </div>
 
-        {/* Key Moments — shown above the board when analysis is available */}
+        {/* Key Moments */}
         {hasAnalysis && (
           <KeyMomentsPanel
             keyMoves={keyMoves}
@@ -221,17 +302,80 @@ export default function GamePage() {
           {/* Left: board */}
           <div className="space-y-3">
             <BoardView
-              fen={currentFen}
-              currentPly={currentPly}
+              fen={displayFen}
+              currentPly={pvExplorer ? null : currentPly}
               orientation={playerColor === "w" ? "white" : "black"}
               onPrevMove={() => setCurrentPlyIndex((i) => Math.max(-1, i - 1))}
               onNextMove={() => setCurrentPlyIndex((i) => Math.min(plies.length - 1, i + 1))}
               onGoToStart={() => setCurrentPlyIndex(-1)}
               onGoToEnd={() => setCurrentPlyIndex(plies.length - 1)}
-              canGoPrev={currentPlyIndex >= 0}
-              canGoNext={currentPlyIndex < plies.length - 1}
+              canGoPrev={!pvExplorer && currentPlyIndex >= 0}
+              canGoNext={!pvExplorer && currentPlyIndex < plies.length - 1}
+              bestMoveArrow={displayArrow}
             />
-            <p className="text-xs text-center text-gray-400">← → arrow keys to navigate</p>
+
+            {/* PV Explorer strip */}
+            {pvExplorer && (
+              <div className="bg-white rounded-lg border border-green-200 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-green-700">Best line</span>
+                  <button
+                    onClick={() => setPvExplorer(null)}
+                    className="text-xs text-gray-400 hover:text-gray-600"
+                  >
+                    ✕ Exit
+                  </button>
+                </div>
+
+                {/* PV move chips */}
+                <div className="flex flex-wrap gap-1">
+                  {pvExplorer.sans.map((san, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setPvExplorer((p) => p ? { ...p, step: i } : null)}
+                      className={`font-mono text-xs px-1.5 py-0.5 rounded border transition-colors ${
+                        i === pvExplorer.step
+                          ? "bg-green-600 text-white border-green-600"
+                          : i < pvExplorer.step
+                          ? "bg-green-50 text-green-700 border-green-200"
+                          : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
+                      }`}
+                    >
+                      {san}
+                    </button>
+                  ))}
+                  {pvExplorer.step === pvExplorer.sans.length && (
+                    <span className="text-xs text-gray-400 self-center italic">end of line</span>
+                  )}
+                </div>
+
+                {/* Prev / Next */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setPvExplorer((p) => p ? { ...p, step: Math.max(0, p.step - 1) } : null)}
+                    disabled={pvExplorer.step === 0}
+                    className="text-xs px-2 py-1 rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    ← Prev
+                  </button>
+                  <button
+                    onClick={() => setPvExplorer((p) => p ? { ...p, step: Math.min(p.sans.length, p.step + 1) } : null)}
+                    disabled={pvExplorer.step >= pvExplorer.sans.length}
+                    className="text-xs px-2 py-1 rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    Next →
+                  </button>
+                  <span className="text-xs text-gray-400">
+                    {pvExplorer.step + 1} / {pvExplorer.sans.length + 1}
+                  </span>
+                  <span className="text-xs text-gray-300 ml-auto">← → to step</span>
+                </div>
+              </div>
+            )}
+
+            {!pvExplorer && (
+              <p className="text-xs text-center text-gray-400">← → arrow keys to navigate</p>
+            )}
           </div>
 
           {/* Right: move list + analysis panel */}
@@ -265,6 +409,8 @@ export default function GamePage() {
               ply={currentPly}
               analysis={currentAnalysis}
               playerColor={playerColor}
+              showingBestMove={!!pvExplorer}
+              onToggleBestMove={handleTogglePv}
             />
           </div>
         </div>

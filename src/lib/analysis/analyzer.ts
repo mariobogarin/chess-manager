@@ -223,6 +223,28 @@ export async function analyzeGame(
 
   const patterns = detectPatterns(savedAnalyses, plies, playerColor);
 
+  // ── Accuracy scores (Chess.com formula) ───────────────────────────────────
+  function cpToWinPct(cp: number): number {
+    return 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * cp)) - 1);
+  }
+
+  function computeAccuracy(side: "w" | "b"): number | null {
+    const sideMoves = savedAnalyses.filter(
+      (ma) => ma.side === side && ma.evalBefore !== null && ma.evalAfter !== null
+    );
+    if (sideMoves.length === 0) return null;
+    const accs = sideMoves.map((ma) => {
+      const wpBefore = side === "w" ? cpToWinPct(ma.evalBefore!) : 100 - cpToWinPct(ma.evalBefore!);
+      const wpAfter  = side === "w" ? cpToWinPct(ma.evalAfter!)  : 100 - cpToWinPct(ma.evalAfter!);
+      const acc = 103.1668 * Math.exp(-0.04354 * Math.max(0, wpBefore - wpAfter)) - 3.1668;
+      return Math.max(0, Math.min(100, acc));
+    });
+    return accs.reduce((a, b) => a + b, 0) / accs.length;
+  }
+
+  const whiteAccuracy = computeAccuracy("w");
+  const blackAccuracy = computeAccuracy("b");
+
   // Build game analysis summary
   const playerPlies = savedAnalyses.filter((ma) => ma.side === playerColor);
   const blunders = playerPlies.filter((ma) => ma.classification === "blunder").length;
@@ -250,6 +272,8 @@ export async function analyzeGame(
       middlegameIssues: JSON.stringify(middlegameIssues),
       endgameIssues: JSON.stringify(endgameIssues),
       majorFindings: JSON.stringify(majorFindings),
+      whiteAccuracy,
+      blackAccuracy,
     },
     create: {
       gameId: game.id,
@@ -259,6 +283,8 @@ export async function analyzeGame(
       middlegameIssues: JSON.stringify(middlegameIssues),
       endgameIssues: JSON.stringify(endgameIssues),
       majorFindings: JSON.stringify(majorFindings),
+      whiteAccuracy,
+      blackAccuracy,
     },
   });
 

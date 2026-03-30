@@ -90,6 +90,8 @@ model GameAnalysisSummary {
   middlegameIssues   String   @default("[]")
   endgameIssues      String   @default("[]")
   majorFindings      String   @default("[]")
+  whiteAccuracy      Float?
+  blackAccuracy      Float?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
   game               Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)

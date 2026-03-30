@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { Game, GameAnalysisSummary } from "@prisma/client";
 
 interface GameWithSummary extends Game {
-  analysisSummary: Pick<GameAnalysisSummary, "analyzedAt" | "resultCategory" | "majorFindings"> | null;
+  analysisSummary: Pick<GameAnalysisSummary, "analyzedAt" | "resultCategory" | "majorFindings" | "whiteAccuracy" | "blackAccuracy"> | null;
 }
 
 interface Props {
@@ -26,6 +26,17 @@ export function GameCard({ game, playerUsername }: Props) {
 
   const resultStyle = RESULT_STYLES[game.result as keyof typeof RESULT_STYLES] ?? RESULT_STYLES.draw;
   const analyzed = !!game.analysisSummary;
+
+  const accuracy = analyzed
+    ? (isWhite ? game.analysisSummary?.whiteAccuracy : game.analysisSummary?.blackAccuracy) ?? null
+    : null;
+
+  function accuracyColor(acc: number): string {
+    if (acc >= 90) return "text-green-700 bg-green-50 border-green-200";
+    if (acc >= 75) return "text-blue-700 bg-blue-50 border-blue-200";
+    if (acc >= 60) return "text-yellow-700 bg-yellow-50 border-yellow-200";
+    return "text-red-700 bg-red-50 border-red-200";
+  }
 
   const findings: string[] = game.analysisSummary?.majorFindings
     ? JSON.parse(game.analysisSummary.majorFindings)
@@ -72,13 +83,20 @@ export function GameCard({ game, playerUsername }: Props) {
               </div>
             )}
           </div>
-          <div className="text-right text-xs text-gray-400 shrink-0">
-            {game.endTime
-              ? new Date(game.endTime).toLocaleDateString(undefined, {
-                  month: "short",
-                  day: "numeric",
-                })
-              : ""}
+          <div className="flex flex-col items-end gap-1.5 shrink-0">
+            {accuracy !== null && (
+              <span className={`inline-flex items-center rounded border px-2 py-0.5 text-xs font-semibold ${accuracyColor(accuracy)}`}>
+                {accuracy.toFixed(1)}%
+              </span>
+            )}
+            <span className="text-xs text-gray-400">
+              {game.endTime
+                ? new Date(game.endTime).toLocaleDateString(undefined, {
+                    month: "short",
+                    day: "numeric",
+                  })
+                : ""}
+            </span>
           </div>
         </div>
       </div>

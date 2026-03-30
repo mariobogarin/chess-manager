@@ -13,6 +13,7 @@ interface Props {
   onGoToEnd: () => void;
   canGoPrev: boolean;
   canGoNext: boolean;
+  bestMoveArrow?: [string, string] | null;
 }
 
 export function BoardView({
@@ -25,6 +26,7 @@ export function BoardView({
   onGoToEnd,
   canGoPrev,
   canGoNext,
+  bestMoveArrow,
 }: Props) {
   // Highlight from/to squares of current move
   const customSquareStyles: Record<string, React.CSSProperties> = {};
@@ -37,6 +39,10 @@ export function BoardView({
     };
   }
 
+  const arrows = bestMoveArrow
+    ? [{ startSquare: bestMoveArrow[0], endSquare: bestMoveArrow[1], color: "#16a34a" }]
+    : [];
+
   return (
     <div className="space-y-3">
       <div className="rounded-lg overflow-hidden shadow-md border border-gray-200">
@@ -45,6 +51,7 @@ export function BoardView({
             position: fen,
             boardOrientation: orientation,
             squareStyles: customSquareStyles,
+            arrows,
             allowDragging: false,
             boardStyle: { borderRadius: "4px" },
           }}

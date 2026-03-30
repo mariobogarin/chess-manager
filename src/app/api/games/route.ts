@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
         take: limit,
         include: {
           analysisSummary: {
-            select: { analyzedAt: true, resultCategory: true, majorFindings: true },
+            select: { analyzedAt: true, resultCategory: true, majorFindings: true, whiteAccuracy: true, blackAccuracy: true },
           },
         },
       }),

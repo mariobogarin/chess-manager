@@ -11,9 +11,11 @@ interface Props {
   ply: Ply | null;
   analysis: MoveAnalysis | null;
   playerColor: "w" | "b";
+  showingBestMove?: boolean;
+  onToggleBestMove?: () => void;
 }
 
-export function AnalysisPanel({ ply, analysis, playerColor }: Props) {
+export function AnalysisPanel({ ply, analysis, playerColor, showingBestMove, onToggleBestMove }: Props) {
   if (!ply) {
     return (
       <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-500">
@@ -99,12 +101,30 @@ export function AnalysisPanel({ ply, analysis, playerColor }: Props) {
 
       {/* Best move */}
       {showBestMove && (analysis?.bestMoveSan || analysis?.bestMove) && (
-        <div className="text-xs text-gray-500 space-y-0.5">
-          <div>
-            <span className="font-medium text-gray-700">Best move: </span>
-            <span className="font-mono text-green-700 font-semibold">
-              {analysis.bestMoveSan ?? analysis.bestMove}
-            </span>
+        <div className="text-xs text-gray-500 space-y-1">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <span className="font-medium text-gray-700">Best move: </span>
+              <span className="font-mono text-green-700 font-semibold">
+                {analysis.bestMoveSan ?? analysis.bestMove}
+              </span>
+            </div>
+            {onToggleBestMove && (
+              <button
+                onClick={onToggleBestMove}
+                className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs font-medium transition-colors ${
+                  showingBestMove
+                    ? "border-green-300 bg-green-50 text-green-700 hover:bg-green-100"
+                    : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:border-gray-300"
+                }`}
+              >
+                <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                  <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                </svg>
+                {showingBestMove ? "Exit line" : "Explore line"}
+              </button>
+            )}
           </div>
           {pv.length > 1 && (
             <div className="font-mono text-gray-400">
